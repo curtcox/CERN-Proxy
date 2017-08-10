@@ -5,7 +5,7 @@ class HttpExchange {
 
     HttpRequest request;
     HttpResponse response;
-    URL url;
+    String url;
     Date date = new Date();
     InetAddress serverAddress;
     InetAddress clientAddress;
@@ -21,7 +21,7 @@ class HttpExchange {
         write();
     }
 
-    synchronized void write() {
+    void write() {
         if (request!=null && response!=null) {
             System.out.println(this);
         }

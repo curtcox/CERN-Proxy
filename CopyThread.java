@@ -5,47 +5,49 @@ import java.net.*;
 class CopyThread implements Runnable {
 
   InputStream   in;
-  Thread        thread;
   OutputStream  out;
+  Thread        thread;
   byte[]        buffer = new byte[1000];
+  ByteArrayOutputStream log = new ByteArrayOutputStream();
 
   CopyThread(InputStream in, OutputStream out) {
     this.in  = in;
     this.out = out;
-    start();
+    thread = new Thread(this,"copy");
   }
 
   void start() {
-      thread = new Thread(this);
       thread.start();
   }
 
   public void run() {
-
-    int  realSize;
     try {
-        // copy while there is more left
-        while (true) {
-            realSize = in.read(buffer); // returns a byte, or -1
-            if (realSize == -1) {
-                out.close();
-                break;
-            }  //if -1
-            copyBytes(buffer, realSize);
-        }  //while
-        in.close();
-        out.close();
-    } catch (SocketException se) {}
-      catch (Exception e) {
-        e.printStackTrace();
-        throw new RuntimeException(e.toString());
+        copy();
+    } catch (Exception e) {
+        System.out.println(e.getMessage());
     }
-    try { finalize(); }
-    catch (Throwable t) {}
+ }
+
+ void copy() throws IOException {
+     while (true) {
+         int realSize = in.read(buffer);
+         if (realSize == -1) {
+             out.close();
+             break;
+         }
+         copyBytes(buffer, realSize);
+     }
+     in.close();
+     out.close();
  }
 
  void copyBytes(byte bytes[], int realSize) throws IOException {
     out.write(bytes,0,realSize);
+    log.write(bytes,0,realSize);
+}
+
+ byte[] toByteArray() {
+     return log.toByteArray();
  }
 
 }

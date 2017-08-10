@@ -10,7 +10,7 @@ class CERNProxyd implements Runnable {
 
     public static void main(String args[]) throws Exception {
         if (args.length!=1) {
-            logln("Specify port number");
+            log("Specify port number");
             System.exit(0);
         }
         new CERNProxyd(Integer.parseInt(args[0])).start();
@@ -18,31 +18,28 @@ class CERNProxyd implements Runnable {
 
     CERNProxyd(int port) {
         this.port = port;
+        thread = new Thread(this);
     }
 
     void start() {
-        thread = new Thread(this);
         thread.start();
     }
 
     public void run() {
-        Socket server = null;
-        CopyThread input;
-        CopyThread output;
         try{
-           logln("starting CERNProxyd on port number " + port);
+           log("starting CERNProxyd on port number " + port);
            ss = new ServerSocket(port);
            while ( true ) {
-                server = ss.accept();
-                new CERNRequestThread(server);
+               Socket server = ss.accept();
+               log("accepted " + server);
+               CERNRequestThread.of(server);
            }
-        }
-        catch (IOException e) {
-            logln("Unable to start CERNProxyd on port number " + port);
+        } catch (IOException e) {
+            log("Unable to start CERNProxyd on port number " + port);
         }
     }
 
-    static void logln(Object o) {
+    static void log(Object o) {
         System.out.println(o.toString());
     }
 

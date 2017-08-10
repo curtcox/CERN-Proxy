@@ -2,13 +2,13 @@ import java.net.*;
 import java.io.*;
 import java.util.*;
 
-class CERNRequestThread extends LoggedCopyThread {
+class CERNRequestThread extends CopyThread {
 
-    boolean targetKnown = false;
     Socket server;
-    StringBuffer token = new StringBuffer();
+            boolean targetKnown = false;
+             StringBuffer token = new StringBuffer();
     final HttpExchange exchange = new HttpExchange();
-    static final boolean DEBUG = true;
+    static final  boolean DEBUG = true;
 
     CERNRequestThread(Socket server) throws IOException {
         super(server.getInputStream(), new ByteArrayOutputStream());
@@ -17,66 +17,77 @@ class CERNRequestThread extends LoggedCopyThread {
         exchange.serverAddress = server.getInetAddress();
     }
 
+    static void of(Socket server) throws IOException {
+        new CERNRequestThread(server).start();
+    }
+
     void copyBytes(byte bytes[], int realSize) throws IOException {
         super.copyBytes(bytes,realSize);
         if (!targetKnown) {
             String c = new String(bytes,0,1);
             if (" \n\r".indexOf(c)==-1) {
                 token.append(c);
-            }
-            else {
-                logln("token=" + token);
+            } else {
+                log("token=" + token);
                 if (token.toString().startsWith("http://")) {
-                    targetKnown = setTarget();
+                    setTarget();
+                    targetKnown = true;
                 }
                 token = new StringBuffer();
             }
         }
     }
 
-    boolean setTarget() throws IOException {
-        String target = token.toString();
-        logln("target=" + target);
+    void setTarget() throws IOException {
+        String target      = token.toString();
+        Socket client      = openSocketToTargetServer(target);
+        String deproxified = deproxifyRequest(client);
+        sendRequestToTarget(deproxified,client);
+        recordExchange(target,client);
+    }
 
-        // open a socket to the real server
+    Socket openSocketToTargetServer(String target) throws IOException {
+        log("target=" + target);
         URL url = new URL(target);
         int targetPort = url.getPort();
         if (targetPort < 0) targetPort = 80;
-        Socket client = new Socket(url.getHost(), targetPort);
+        return new Socket(url.getHost(), targetPort);
+    }
 
-        // deproxify request
+    String deproxifyRequest(Socket client) throws IOException {
         String soFar = new String(((ByteArrayOutputStream) out).toByteArray());
         out = client.getOutputStream();
         int         httpAt = soFar.indexOf("http://");
         int      nextSlash = soFar.indexOf("/",httpAt + 8);
-        String deproxified = soFar.substring(0,httpAt) +
-                             soFar.substring(nextSlash);
-        if (DEBUG) logln("deproxified=" + deproxified);
+        String deproxified = soFar.substring(0,httpAt) + soFar.substring(nextSlash);
+        if (DEBUG) log("deproxified=" + deproxified);
+        return deproxified;
+    }
 
-        // start sending to the real server
+    void sendRequestToTarget(String deproxified,Socket client) throws IOException {
         out.write(deproxified.getBytes());
         buffer = new byte[1000];
-        new LoggedCopyThread(client.getInputStream(),
+        new CopyThread(client.getInputStream(),
             server.getOutputStream()) {
             protected void finalize() throws Throwable {
                 super.finalize();
                 exchange.setResponse(toByteArray());
             }
-        };
+        }.start();
+    }
 
-        // record this exchange
-        exchange.url = url;
+    void recordExchange(String target,Socket client) {
+        exchange.url = target;
         exchange.serverAddress = client.getInetAddress();
-        return true;
     }
 
     protected void finalize() throws Throwable {
         super.finalize();
-        System.out.println("finalizing " + this);
+        log("finalizing " + this);
         exchange.setRequest(CERNRequestThread.this.toByteArray());
     }
 
-    static void logln(Object o) {
+    static void log(Object o) {
         System.out.println(o.toString());
     }
 }
